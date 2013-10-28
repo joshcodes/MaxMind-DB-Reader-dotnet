@@ -49,6 +49,7 @@ namespace MaxMind.Db
     {
 
         private readonly ThreadLocal<Stream> _stream;
+        private readonly UnmanagedMemoryAccessor _memory;
 
         private readonly int _pointerBase = -1;
 
@@ -61,10 +62,11 @@ namespace MaxMind.Db
         /// </summary>
         /// <param name="stream">The stream.</param>
         /// <param name="pointerBase">The base address in the stream.</param>
-        internal Decoder(ThreadLocal<Stream> stream, int pointerBase)
+        public Decoder(ThreadLocal<Stream> stream, int pointerBase, UnmanagedMemoryAccessor memory)
         {
             _pointerBase = pointerBase;
             _stream = stream;
+            _memory = memory;
         }
 
         /// <summary>
@@ -122,8 +124,7 @@ namespace MaxMind.Db
         /// <returns></returns>
         private byte ReadOne(int position)
         {
-            _stream.Value.Seek(position, SeekOrigin.Begin);
-            return (byte)_stream.Value.ReadByte();
+            return _memory.ReadByte(position);
         }
 
         /// <summary>
@@ -135,8 +136,7 @@ namespace MaxMind.Db
         private byte[] ReadMany(int position, int size)
         {
             var buffer = new byte[size];
-            _stream.Value.Seek(position, SeekOrigin.Begin);
-            _stream.Value.Read(buffer, 0, buffer.Length);
+            _memory.ReadArray<byte>(position, buffer, 0, size);
             return buffer;
         }
 

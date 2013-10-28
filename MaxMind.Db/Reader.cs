@@ -46,6 +46,7 @@ namespace MaxMind.Db
         private int _fileSize;
 
         private readonly MemoryMappedFile _memoryMappedFile;
+        private readonly UnmanagedMemoryAccessor _memory;
 
         private int _ipV4Start;
         private int IPV4Start
@@ -95,10 +96,11 @@ namespace MaxMind.Db
                 catch (Exception ex)
                 {
                     if (ex is IOException || ex is NotImplementedException)
-                        _memoryMappedFile = MemoryMappedFile.CreateFromFile(_fileName, FileMode.Open, mmfName, fileInfo.Length, MemoryMappedFileAccess.Read);
+                        _memoryMappedFile = MemoryMappedFile.CreateFromFile(_fileName, FileMode.Open, mmfName, fileInfo.Length, MemoryMappedFileAccess.ReadWriteExecute);//.Read);
                     else
                         throw;
                 }
+                _memory = _memoryMappedFile.CreateViewAccessor();
             }
 
             _stream = new ThreadLocal<Stream>(() =>
@@ -115,10 +117,10 @@ namespace MaxMind.Db
             });
 
             var start = FindMetadataStart();
-            var metaDecode = new Decoder(_stream, start);
+            var metaDecode = new Decoder(_stream, start, _memory);
             var result = metaDecode.Decode(start);
             Metadata = Deserialize<Metadata>(result.Node);
-            Decoder = new Decoder(_stream, Metadata.SearchTreeSize + DataSectionSeparatorSize);
+            Decoder = new Decoder(_stream, Metadata.SearchTreeSize + DataSectionSeparatorSize, _memory);
         }
 
         /// <summary>
@@ -257,15 +259,13 @@ namespace MaxMind.Db
 
         private byte ReadOne(int position)
         {
-            _stream.Value.Seek(position, SeekOrigin.Begin);
-            return (byte)_stream.Value.ReadByte();
+            return _memory.ReadByte(position);
         }
 
         private byte[] ReadMany(int position, int size)
         {
             var buffer = new byte[size];
-            _stream.Value.Seek(position, SeekOrigin.Begin);
-            _stream.Value.Read(buffer, 0, buffer.Length);
+            _memory.ReadArray<byte>(position, buffer, 0, size);
             return buffer;
         }
 
