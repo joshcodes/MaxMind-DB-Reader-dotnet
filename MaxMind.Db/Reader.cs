@@ -6,6 +6,7 @@ using System.Net;
 using System.Threading;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Runtime.InteropServices;
 
 namespace MaxMind.Db
 {
@@ -46,7 +47,7 @@ namespace MaxMind.Db
         private int _fileSize;
 
         private readonly MemoryMappedFile _memoryMappedFile;
-        private readonly UnmanagedMemoryAccessor _memory;
+        private readonly MemoryMappedViewAccessor _memory;
 
         private int _ipV4Start;
         private int IPV4Start
@@ -262,11 +263,14 @@ namespace MaxMind.Db
             return _memory.ReadByte(position);
         }
 
-        private byte[] ReadMany(int position, int size)
+        private unsafe byte[] ReadMany(int offset, int num)
         {
-            var buffer = new byte[size];
-            _memory.ReadArray<byte>(position, buffer, 0, size);
-            return buffer;
+            byte[] arr = new byte[num];
+            byte* ptr = (byte*)0;
+            this._memory.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
+            Marshal.Copy(IntPtr.Add(new IntPtr(ptr), offset), arr, 0, num);
+            this._memory.SafeMemoryMappedViewHandle.ReleasePointer();
+            return arr;
         }
 
         /// <summary>

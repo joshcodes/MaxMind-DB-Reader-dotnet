@@ -4,6 +4,8 @@ using System.Numerics;
 using System.Text;
 using System.Threading;
 using Newtonsoft.Json.Linq;
+using System.Runtime.InteropServices;
+using System.IO.MemoryMappedFiles;
 
 namespace MaxMind.Db
 {
@@ -49,7 +51,7 @@ namespace MaxMind.Db
     {
 
         private readonly ThreadLocal<Stream> _stream;
-        private readonly UnmanagedMemoryAccessor _memory;
+        private readonly MemoryMappedViewAccessor _memory;
 
         private readonly int _pointerBase = -1;
 
@@ -62,7 +64,7 @@ namespace MaxMind.Db
         /// </summary>
         /// <param name="stream">The stream.</param>
         /// <param name="pointerBase">The base address in the stream.</param>
-        public Decoder(ThreadLocal<Stream> stream, int pointerBase, UnmanagedMemoryAccessor memory)
+        public Decoder(ThreadLocal<Stream> stream, int pointerBase, MemoryMappedViewAccessor memory)
         {
             _pointerBase = pointerBase;
             _stream = stream;
@@ -133,11 +135,14 @@ namespace MaxMind.Db
         /// <param name="position">The position.</param>
         /// <param name="size">The size.</param>
         /// <returns></returns>
-        private byte[] ReadMany(int position, int size)
+        private unsafe byte[] ReadMany(int offset, int num)
         {
-            var buffer = new byte[size];
-            _memory.ReadArray<byte>(position, buffer, 0, size);
-            return buffer;
+            byte[] arr = new byte[num];
+            byte* ptr = (byte*)0;
+            this._memory.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
+            Marshal.Copy(IntPtr.Add(new IntPtr(ptr), offset), arr, 0, num);
+            this._memory.SafeMemoryMappedViewHandle.ReleasePointer();
+            return arr;
         }
 
         /// <summary>
